@@ -184,16 +184,20 @@ def main(config):
             tf.summary.scalar("Loss",aveLoss.numpy(),step=pltiter)
             tf.summary.scalar("LossR",aveLoss1.numpy(),step=pltiter)
             tf.summary.scalar("LossB",aveLoss2.numpy(),step=pltiter)
-            tf.summary.image("Data",im,step=pltiter)
+            if config['outdir'] is not None:
+                tf.summary.image("Data",im,step=pltiter)
         writer.flush()
 
         aveLoss = tf.nn.compute_average_loss(epTotalLoss)
         aveLoss1 = tf.nn.compute_average_loss(epLoss1)
         aveLoss2 = tf.nn.compute_average_loss(epLoss2)
+        aveLoss = round(aveLoss.numpy(),4)
+        aveLoss1 = round(aveLoss1.numpy(),4)
+        aveLoss2 = round(aveLoss2.numpy(),4)
         
-        totalLosses.append(aveLoss.numpy())
-        losses1.append(aveLoss1.numpy())
-        losses2.append(aveLoss2.numpy())
+        totalLosses.append(aveLoss)
+        losses1.append(aveLoss1)
+        losses2.append(aveLoss2)
         
         pltiter += 1
         conv_counter += 1
@@ -202,9 +206,9 @@ def main(config):
         stdEpLoss2=np.std([x.numpy() for x in epLoss2])
         stdTotalLoss=np.std([x.numpy() for x in epTotalLoss])
         # save model
-        if aveLoss.numpy() < best_loss:
+        if aveLoss < best_loss:
             conv_counter = 0
-            best_loss = aveLoss.numpy()
+            best_loss = aveLoss
             if not os.path.exists(os.path.join(logdir, 'save/')):
                 os.mkdir(os.path.join(logdir, 'save/'))
             print('[INFO] Saving Model')
@@ -213,8 +217,8 @@ def main(config):
             tf.keras.callbacks.ModelCheckpoint(filepath=config['logdir'],
                                                  save_weights_only=False,
                                                  verbose=1)
-        print('[INFO] Epoch {}'.format(epoch) + ' Average loss: ' + str(round(aveLoss.numpy(),4)) + ' std ' + str(round(stdTotalLoss,4)) 
-              + ' roomTypeLoss: '  + str(round(aveLoss1.numpy(),4)) + ' std ' + str(round(stdEpLoss1,4)) + ' roomBoundLoss: ' + str(round(aveLoss2.numpy(),4)) 
+        print('[INFO] Epoch {}'.format(epoch) + ' Average loss: ' + str(aveLoss) + ' std ' + str(round(stdTotalLoss,4)) 
+              + ' roomTypeLoss: '  + str(aveLoss1) + ' std ' + str(round(stdEpLoss1,4)) + ' roomBoundLoss: ' + str(aveLoss2) 
               + ' std ' + str(round(stdEpLoss2,4)) + ' Learning Rate: ' + str(config['lr']))
 
         now = datetime.now()
