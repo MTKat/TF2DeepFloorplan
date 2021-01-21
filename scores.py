@@ -4,6 +4,7 @@ from skimage.io import imread, imsave
 from skimage.transform import resize as imresize
 from scipy.spatial.distance import cosine
 from scipy.spatial.distance import euclidean
+from scipy.spatial import distance_matrix
 import os
 import sys
 import glob
@@ -51,7 +52,6 @@ def evaluateRooms_cosine(benchmark_path, result_dir, num_of_classes=11, suffix=N
     """
     gt_paths = open(benchmark_path, 'r').read().splitlines()
     r_paths = [p.split('\t')[3] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room
-    im_names = [p.split('/')[-1].split('.')[0] for p in gt_paths]
     im_paths = [os.path.join(result_dir, p.split('/')[-1].split('.')[0] + '_pred.png') for p in r_paths]
     data_dir = os.path.dirname(benchmark_path)
     sims=[]
@@ -120,9 +120,6 @@ def evaluateBounds_cosine(benchmark_path, result_dir, suffix=None, im_resize=Tru
     """
     gt_paths = open(benchmark_path, 'r').read().splitlines()
     d_paths = [p.split('\t')[2] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room
-    r_paths = [p.split('\t')[3] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room
-    cw_paths = [p.split('\t')[-1] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room, last one denote close wall
-    im_names = [p.split('/')[-1].split('.')[0] for p in gt_paths]
     im_paths = [os.path.join(result_dir, p.split('/')[-1].split('.')[0]).replace('_close', '_doors_windows') + '.png' for p in d_paths]
     data_dir = os.path.dirname(benchmark_path)
     sims=[]
@@ -189,9 +186,6 @@ def evaluateBounds_euclidean(benchmark_path, result_dir, suffix=None, im_resize=
     """
     gt_paths = open(benchmark_path, 'r').read().splitlines()
     d_paths = [p.split('\t')[2] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room
-    r_paths = [p.split('\t')[3] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room
-    cw_paths = [p.split('\t')[-1] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room, last one denote close wall
-    im_names = [p.split('/')[-1].split('.')[0] for p in gt_paths]
     im_paths = [os.path.join(result_dir, p.split('/')[-1].split('.')[0]).replace('_close', '_doors_windows') + '.png' for p in d_paths]
     data_dir = os.path.dirname(benchmark_path)
     dists=[]
@@ -232,11 +226,74 @@ def evaluateBounds_euclidean(benchmark_path, result_dir, suffix=None, im_resize=
     print("Average euclidean distance " + str(aveDist))
     return df
 
+def evaluateBounds_pairWiseDistance(benchmark_path, result_dir, suffix=None, im_resize=True, gt_resize=True, train=True):
+    """
 
-baseDirectory = '/d2/studies/TF2DeepFloorplan/'
-benchmark_path='/d2/studies/TF2DeepFloorplan/dataset/r3d_train.txt'
-result_dir='/d2/studies/TF2DeepFloorplan/outJan19_TFR5_lr5e-4_ss25_RGB/250' #change this to outdir of training
-num_of_classes=11
+    Parameters
+    ----------
+    benchmark_path : string
+        Path to .txt file containing dataset paths.
+    result_dir : string
+        Directory containing result images to evaluate.
+    suffix : string, optional
+        Suffix to append to file name
+    im_resize : boolean, optional
+        Whether to resize result images to 512x512. The default is True.
+    gt_resize : boolean, optional
+        Whether to resize ground truth images to 512x512. The default is True.
+    train : boolean, optional
+        Whether to evaluate training data or test data. The default is False.
+
+    Returns
+    -------
+    None.
+
+    """
+    gt_paths = open(benchmark_path, 'r').read().splitlines()
+    d_paths = [p.split('\t')[2] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room
+    im_paths = [os.path.join(result_dir, p.split('/')[-1].split('.')[0]).replace('_close', '_doors_windows') + '.png' for p in d_paths]
+    data_dir = os.path.dirname(benchmark_path)
+    dists=[]
+    names = []
+    for i in range(len(im_paths)):
+        try:
+            res_im  = imread(im_paths[i], pilmode='L')
+            name = os.path.basename(im_paths[i]).split('_')[0]
+            if train:
+                gt_im = imread(os.path.join(data_dir, 'newyork/train/' + name + '_close.png'), pilmode='L')
+            elif not train:
+                gt_im = imread(os.path.join(data_dir, 'newyork/test/' + name + '_close.png'))
+                
+            if im_resize:
+                res_im = imresize(res_im, (512,512), mode='constant', cval=0, preserve_range=True)
+            if gt_resize:
+                gt_im = imresize(gt_im, (512,512), mode='constant', cval=0, preserve_range=True)
+     #       res_im_1d = res_im.flatten()
+     #       gt_im_1d = gt_im.flatten()
+     #       res_im_1d = res_im_1d + 1e-6
+     #       gt_im_1d = gt_im_1d + 1e-6
+            dist = distance_matrix(res_im, gt_im)
+            dist = np.mean(dist)
+            print("Image " + str(name) + " Pairwise distance " + str(dist))
+            dists.append(dist)
+            names.append(name)
+        except FileNotFoundError:
+            print("Passing " + str(im_paths[i]))
+        #    pass
+    names.append('MEAN')
+    dists.append(np.mean(dists))
+    df = pd.DataFrame([names, dists]).T
+    df.columns=['image', 'pairwise_distance']
+    df.sort_values(by='pairwise_distance', inplace=True, ascending=False)
+    df.reset_index(drop=True, inplace=True)
+    if suffix:
+        df.to_csv('PairwiseDistance_Entrance_Results_' + suffix + '.csv')
+    elif not suffix:
+        df.to_csv('PairwiseDisance_Entrance_Results.csv')
+    aveDist = np.mean(dists)
+    print("Average Pairwise Distance " + str(aveDist))
+    return df
+
           
 def evaluate_semantic(benchmark_path, result_dir, num_of_classes=11, need_merge_result=False, im_downsample=False, gt_downsample=False):
     gt_paths = open(benchmark_path, 'r').read().splitlines()
