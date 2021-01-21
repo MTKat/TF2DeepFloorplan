@@ -295,7 +295,7 @@ def evaluateBounds_pairWiseDistance(benchmark_path, result_dir, suffix=None, im_
     return df
 
           
-def evaluate_semantic(benchmark_path, result_dir, num_of_classes=11, need_merge_result=False, im_downsample=False, gt_downsample=False):
+def evaluate_semantic(benchmark_path, result_dir, num_of_classes=11, need_merge_result=False, im_downsample=True, gt_downsample=True):
     gt_paths = open(benchmark_path, 'r').read().splitlines()
     d_paths = [p.split('\t')[2] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room
     r_paths = [p.split('\t')[3] for p in gt_paths] # 1 denote wall, 2 denote door, 3 denote room
@@ -303,9 +303,8 @@ def evaluate_semantic(benchmark_path, result_dir, num_of_classes=11, need_merge_
     im_names = [p.split('/')[-1].split('.')[0] for p in gt_paths]
     im_paths = [os.path.join(result_dir, p.split('/')[-1].split('.')[0] + '_pred.png') for p in r_paths]
     if need_merge_result:
-        im_paths = [os.path.join(result_dir+'/room', p.split('/')[-1]) for p in r_paths]
-        d_paths = [os.path.join(result_dir+'/door', p.split('/')[-1]) for p in d_paths]
-        im_cw_paths = [os.path.join(result_dir+'/close_wall', p.split('/')[-1]) for p in cw_paths]
+        im_d_paths = [os.path.join(result_dir, p.split('/')[-1].split('.')[0].replace('close', 'doors_windows.png')) for p in d_paths]
+        im_cw_paths = [os.path.join(result_dir, p.split('/')[-1].split('.')[0].replace('close_wall', 'close_walls.png')) for p in cw_paths]
 
     n = len(im_paths)
 	# n = 1
